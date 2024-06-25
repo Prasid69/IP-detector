@@ -1,67 +1,87 @@
-import requests
+import geoip2.database
+import ipaddress
+import dns.resolver
 
-def get_ip():
-    response = requests.get('https://api64.ipify.org/?format=json').json()
-    return response["ip"]
+def load_vpn_ip_list(file_path):
+    with open(file_path, 'r') as file:
+        vpn_ips = file.read().splitlines()
+    return vpn_ips
 
-def get_location(ip_address, api_key):
-    response = requests.get(f'https://ipinfo.io/{ip_address}?token={api_key}').json()
-    location_data = {
-        "ip": ip_address,
-        "City Name": response.get('city'),
-        "Region": response.get('region'),
-        "Country": response.get('country'),
-        "Time Zone": response.get('timezone')    
-    }
-    return location_data
+def is_ip_in_vpn_list(ip_address, vpn_ips):
+    ip = ipaddress.ip_address(ip_address)
+    for vpn_ip in vpn_ips:
+        if '/' in vpn_ip:  # Handle IP ranges
+            if ip in ipaddress.ip_network(vpn_ip):
+                return True
+        else:
+            if ip_address == vpn_ip:
+                return True
+    return False
 
-def for_vpn_proxy(ip_address, api_key):
-    response = requests.get(f'https://vpnapi.io/api/{ip_address}?key={api_key}').json()
-    vpn_proxy = {
-        "ip": ip_address,
-        "VPN": response.get('security', {}).get('vpn'),
-        "Proxy": response.get('security', {}).get('proxy'),
-        "Tor": response.get('security', {}).get('tor')
-    }
-    return vpn_proxy
-
-def main():
-    ipinfo_api_key = 'a68557753f2cbd'  
-    vpnapi_api_key = 'cc1f480e5aa34bdb9119e243b46f9146'  
+def check_vpn_using_geolocation(ip_address):
+    reader = geoip2.database.Reader('./db/GeoLite2-City_20240621\GeoLite2-City.mmdb')
+    response = reader.city(ip_address)
     
-    user_ip = input("Enter an IP address (or press Enter to use your own IP): ") #current ko ip
-    if not user_ip:
-        user_ip = get_ip()
-
-    current_location = get_location(user_ip, ipinfo_api_key)
-    vpn_proxy_info = for_vpn_proxy(user_ip, vpnapi_api_key)
-   
-    previous_ip = input("Enter a previous IP address (or press Enter if not available): ") #previous ko
-    previous_country = None
-
-    if previous_ip:
-        previous_location = get_location(previous_ip, ipinfo_api_key)
-        previous_country = previous_location["Country"]
-
-    print("Geolocation Info:")
-    print(current_location)
+    print("response.country.iso_code: {}".format(response.country.iso_code))
+    print("response.subdivisions.most_specific.name: {}".format(response.subdivisions.most_specific.name))
+    print("response.subdivisions.most_specific.iso_code: {}".format(response.subdivisions.most_specific.iso_code))
+    print("response.city.name: {}".format(response.city.name))
+    print("response.postal.code: {}".format(response.postal.code))
     
-    print("VPN and Proxy Info:")
-    print(vpn_proxy_info)
-    if vpn_proxy_info["VPN"]:
-        print("The IP address is using a VPN.")
-    if vpn_proxy_info["Proxy"]:
-        print("The IP address is using a Proxy.")
-    if vpn_proxy_info["Tor"]:
-        print("The IP address is using Tor.")
+    reader.close()
     
-    if previous_country != current_location["Country"]:
-        print(f"The country has changed from {previous_country} to {current_location['Country']}.")
-    else:
-        print("The country has not changed.")
+    if response.traits.is_anonymous_proxy or response.traits.is_legitimate_proxy:
+        return response.traits.network
+    return None
 
-if __name__ == "__main__":
-    main()
+def check_dnsbl(ip_address):
+    dnsbl_providers = [
+        'zen.spamhaus.org',
+        'b.barracudacentral.org',
+        'bl.spamcop.net',
+        'dnsbl.sorbs.net',
+    ]
+    
+    reversed_ip = '.'.join(reversed(ip_address.split('.')))
+    results = {}
+    
+    for provider in dnsbl_providers:
+        try:
+            query = f"{reversed_ip}.{provider}"
+            answers = dns.resolver.resolve(query, 'A')
+            results[provider] = 'Listed'
+        except dns.resolver.NXDOMAIN:
+            results[provider] = 'Not listed'
+        except Exception as e:
+            results[provider] = f"Error: {e}"
+    
+    return results
+
+def check_ip_clean(ip_address):
+    # Load VPN/Proxy IP list
+    vpn_ip_list = load_vpn_ip_list('./db/vpn_ip_list.txt')
+    
+    # Check if IP is in known VPN/Proxy list
+    if is_ip_in_vpn_list(ip_address, vpn_ip_list):
+        return "IP is listed in known VPN/Proxy list."
+    
+    # Check using GeoLite2 database
+    vpn_provider = check_vpn_using_geolocation(ip_address)
+    if vpn_provider:
+        return f"IP is detected as a VPN/Proxy: {vpn_provider}"
+    
+    # Check against DNS-based blacklists
+    dnsbl_results = check_dnsbl(ip_address)
+    for provider, status in dnsbl_results.items():
+        if status == 'Listed':
+            return f"IP is listed on DNSBL: {provider}"
+    
+    return "IP is clean."
+
+
+ip_address = '27.34.76.93'
+result = check_ip_clean(ip_address)
+print(result)
 
 
 
