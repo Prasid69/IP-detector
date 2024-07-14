@@ -19,7 +19,7 @@ def is_ip_in_vpn_list(ip_address, vpn_ips):
     return False
 
 def check_vpn_using_geolocation(ip_address):
-    reader = geoip2.database.Reader('./db/GeoLite2-City_20240621\GeoLite2-City.mmdb')
+    reader = geoip2.database.Reader('./db/GeoLite2-City_20240621/GeoLite2-City.mmdb')
     response = reader.city(ip_address)
     
     print("response.country.iso_code: {}".format(response.country.iso_code))
@@ -79,7 +79,7 @@ def check_ip_clean(ip_address):
     return "IP is clean."
 
 
-ip_address = '51.45.124.87'
+ip_address = '77.101.214.31'
 result = check_ip_clean(ip_address)
 result2= check_vpn_using_geolocation(ip_address)
 print(result)
