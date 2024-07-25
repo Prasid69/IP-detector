@@ -10,6 +10,6 @@ def call_ip_check_api(ip_address):
         return {'error': 'Failed to retrieve data', 'status_code': response.status_code}
 
 if __name__ == "__main__":
-    ip_address = '178.20.55.182'
-    result = call_ip_check_api(ip_address)
-    print(result)
+    ip_address = '27.34.66.195'
+    result1 = call_ip_check_api(ip_address)
+    print(result1)

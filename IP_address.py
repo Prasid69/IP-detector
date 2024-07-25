@@ -79,7 +79,7 @@ def check_ip_clean(ip_address):
     return "IP is clean."
 
 
-ip_address = '77.101.214.31'
+ip_address = '27.34.66.195'
 result = check_ip_clean(ip_address)
 result2= check_vpn_using_geolocation(ip_address)
 print(result)

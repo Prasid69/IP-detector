@@ -13,7 +13,7 @@ def load_vpn_ip_list(file_path):
 def is_ip_in_vpn_list(ip_address, vpn_ips):
     ip = ipaddress.ip_address(ip_address)
     for vpn_ip in vpn_ips:
-        if '/' in vpn_ip:  # Handle IP ranges
+        if '/' in vpn_ip: 
             if ip in ipaddress.ip_network(vpn_ip):
                 return True
         else:
@@ -61,19 +61,17 @@ def check_dnsbl(ip_address):
     return results
 
 def check_ip_clean(ip_address):
-    # Load VPN/Proxy IP list
+    
     vpn_ip_list = load_vpn_ip_list('./db/vpn_ip_list.txt')
     
-    # Check if IP is in known VPN/Proxy list
+    
     if is_ip_in_vpn_list(ip_address, vpn_ip_list):
         return "IP is listed in known VPN/Proxy list."
     
-    # Check using GeoLite2 database
     vpn_provider = check_vpn_using_geolocation(ip_address)
     if vpn_provider:
         return f"IP is detected as a VPN/Proxy: {vpn_provider}"
     
-    # Check against DNS-based blacklists
     dnsbl_results = check_dnsbl(ip_address)
     for provider, status in dnsbl_results.items():
         if status == 'Listed':
